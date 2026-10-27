@@ -5,6 +5,20 @@
   "type": "module",
   "description": "基于 Express + Playwright 的官网页面批量巡检服务",
   "main": "server.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryhirz/page-audit-service.git"
+  },
+  "keywords": [
+    "express",
+    "playwright",
+    "web-automation",
+    "page-audit",
+    "e2e"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node server.js",
     "self-test": "node test/self-test.js"

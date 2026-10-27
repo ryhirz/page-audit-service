@@ -36,10 +36,14 @@ page-audit-service/
 ## 快速开始
 
 ```bash
-npm install
+npm ci                    # 或 npm install
 npm start                 # 默认 http://localhost:3001
-node test/self-test.js    # 跑回归断言
+npm run self-test         # 跑 28 项回归断言
 ```
+
+`playwright-core` 不自带浏览器，会按「系统 Chrome → 系统 Edge → playwright 缓存内核」的顺序自动探测；也可以用环境变量 `CHROME_PATH` 指定。
+
+**规模**：6 个源文件 / 773 行代码 / 2 个运行时依赖。
 
 ---
 
