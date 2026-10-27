@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>页面巡检 · Page Audit</title>
+<style>
+  :root { --blue:#007AFF; --line:#e5e5ea; --muted:#6e6e73; --ink:#1d1d1f; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Microsoft YaHei","PingFang SC",-apple-system,sans-serif;
+         color:var(--ink); background:#fff; padding:40px 24px; }
+  .wrap { max-width:1080px; margin:0 auto; }
+  h1 { font-size:24px; font-weight:600; letter-spacing:.2px; }
+  h1 span { color:var(--blue); }
+  .sub { color:var(--muted); font-size:13px; margin:8px 0 26px; line-height:1.7; }
+  .panel { border:1px solid var(--line); border-radius:12px; padding:20px; }
+  textarea { width:100%; min-height:118px; border:1px solid var(--line); border-radius:8px;
+             padding:12px; font:13px/1.7 Consolas,monospace; resize:vertical; outline:none; }
+  textarea:focus { border-color:var(--blue); }
+  .row { display:flex; gap:12px; align-items:center; margin-top:14px; flex-wrap:wrap; }
+  select, button { font-family:inherit; font-size:13px; }
+  select { border:1px solid var(--line); border-radius:8px; padding:9px 12px; outline:none; background:#fff; }
+  button { background:var(--blue); color:#fff; border:0; border-radius:8px;
+           padding:10px 22px; font-weight:600; cursor:pointer; }
+  button:disabled { background:#c7c7cc; cursor:not-allowed; }
+  button.ghost { background:#fff; color:var(--blue); border:1px solid var(--blue); }
+  .hint { color:var(--muted); font-size:12px; margin-left:auto; }
+  .bar { height:4px; background:#f2f2f7; border-radius:2px; margin:18px 0 8px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:0; background:var(--blue); transition:width .3s ease; }
+  .status { font-size:12.5px; color:var(--muted); }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:18px; }
+  th, td { border-bottom:1px solid #f2f2f7; padding:9px 6px; text-align:left; vertical-align:top; }
+  th { background:#fafafa; font-size:12px; font-weight:600; color:#3a3a3c; }
+  td.u { max-width:250px; word-break:break-all; font-size:11.5px; color:#3a3a3c; }
+  td.iss { font-size:11.5px; color:#c0392b; }
+  .score { font-weight:700; }
+  .good .score { color:#1a7f37; } .warn .score { color:#b26a00; } .bad .score { color:#c0392b; }
+  .empty { color:var(--muted); font-size:13px; padding:30px 0; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>页面<span>巡检</span></h1>
+  <p class="sub">批量检查页面的 SEO 基础项、图片 alt、外链安全属性、表单字段、移动端横向溢出、控制台报错与加载耗时。<br>
+     每行一个地址，不带协议会自动补 https://，单批最多 30 个。</p>
+
+  <div class="panel">
+    <textarea id="urls" placeholder="https://www.example.com
+www.example.com/about
+www.example.com/courses"></textarea>
+    <div class="row">
+      <select id="conc">
+        <option value="2">并发 2（稳）</option>
+        <option value="3" selected>并发 3（默认）</option>
+        <option value="4">并发 4（快）</option>
+      </select>
+      <button id="run">开始巡检</button>
+      <button id="report" class="ghost" disabled>查看报告</button>
+      <button id="export" class="ghost" disabled>导出 JSON</button>
+      <span class="hint" id="hint">就绪</span>
+    </div>
+    <div class="bar"><i id="fill"></i></div>
+    <div class="status" id="status">等待任务</div>
+  </div>
+
+  <div id="result"><div class="empty">暂无结果</div></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let jobId = null;
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g,
+  (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+$('run').onclick = async () => {
+  const urls = $('urls').value.trim();
+  if (!urls) { $('status').textContent = '请先填写地址'; return; }
+  $('run').disabled = true;
+  $('report').disabled = true;
+  $('export').disabled = true;
+  $('result').innerHTML = '<div class="empty">巡检中…</div>';
+  $('fill').style.width = '2%';
+  $('hint').textContent = '提交任务';
+
+  let resp;
+  try {
+    resp = await fetch('/api/audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls, concurrency: Number($('conc').value) }),
+    });
+  } catch (e) {
+    $('status').textContent = '提交失败：' + e.message;
+    $('run').disabled = false;
+    return;
+  }
+  const data = await resp.json();
+  if (!resp.ok) {
+    $('status').textContent = data.error || '提交失败';
+    $('run').disabled = false;
+    return;
+  }
+  jobId = data.jobId;
+  $('status').textContent = '任务已创建，共 ' + data.total + ' 个页面';
+  poll();
+};
+
+async function poll() {
+  const r = await fetch('/api/jobs/' + jobId);
+  const job = await r.json();
+  const pct = job.total ? Math.round((job.done / job.total) * 100) : 0;
+  $('fill').style.width = Math.max(2, pct) + '%';
+  $('status').textContent = job.status === 'done'
+    ? '完成：' + job.resultCount + ' 个页面'
+    : '进行中 ' + job.done + '/' + job.total;
+  $('hint').textContent = job.status === 'done' ? '已完成' : '抓取中';
+
+  if (job.status === 'running') { setTimeout(poll, 900); return; }
+
+  const detail = await (await fetch('/api/jobs/' + jobId + '/result')).json();
+  render(detail.results || []);
+  $('run').disabled = false;
+  if (job.status === 'done') { $('report').disabled = false; $('export').disabled = false; }
+}
+
+function render(rows) {
+  if (!rows.length) { $('result').innerHTML = '<div class="empty">没有结果</div>'; return; }
+  rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  const html = rows.map((r) => {
+    if (!r.ok) {
+      return '<tr class="bad"><td class="u">' + esc(r.url) + '</td><td>—</td><td class="score">—</td>'
+        + '<td>—</td><td>—</td><td>—</td><td class="iss">' + esc(r.error || '失败') + '</td></tr>';
+    }
+    const cls = r.score >= 85 ? 'good' : r.score >= 70 ? 'warn' : 'bad';
+    return '<tr class="' + cls + '">'
+      + '<td class="u">' + esc(r.url) + '</td>'
+      + '<td>' + r.status + '</td>'
+      + '<td class="score">' + r.score + '</td>'
+      + '<td>' + r.loadMs + 'ms</td>'
+      + '<td>' + r.imgMissingAlt + '/' + r.imgTotal + '</td>'
+      + '<td>' + (r.mobileOverflow ? '有' : '无') + '</td>'
+      + '<td class="iss">' + (r.issues.length ? esc(r.issues.join('；')) : '—') + '</td>'
+      + '</tr>';
+  }).join('');
+  $('result').innerHTML = '<table><thead><tr><th>地址</th><th>状态</th><th>分数</th><th>加载</th>'
+    + '<th>缺alt</th><th>移动溢出</th><th>问题</th></tr></thead><tbody>' + html + '</tbody></table>';
+}
+
+$('report').onclick = () => window.open('/api/jobs/' + jobId + '/report', '_blank');
+
+$('export').onclick = async () => {
+  const detail = await (await fetch('/api/jobs/' + jobId + '/result')).json();
+  const blob = new Blob([JSON.stringify(detail, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'audit-' + jobId.slice(0, 8) + '.json';
+  a.click();
+};
+</script>
+</body>
+</html>

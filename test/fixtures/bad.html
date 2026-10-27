@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<!-- 故意不写 title 和 meta description，用来验证巡检能否检出 -->
+<title></title>
+<style>
+  /* 故意制造移动端横向溢出：固定 1200px 宽的盒子在 375 视口下必然超出 */
+  .wide { width: 1200px; height: 60px; background: #eee; }
+  body { margin: 0; font-family: sans-serif; }
+</style>
+</head>
+<body>
+<!-- 故意写两个 H1，验证「H1 重复」判定 -->
+<h1>标题一</h1>
+<h1>标题二</h1>
+
+<!-- 3 张图里 2 张缺 alt，验证 alt 检测 -->
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="这张有 alt">
+
+<!-- 2 个表单字段都不写 name，验证表单检测 -->
+<form>
+  <input type="text" placeholder="没有 name">
+  <input type="email" placeholder="也没有 name">
+</form>
+
+<!-- target=_blank 但没有 rel=noopener，验证外链安全检测 -->
+<a href="https://example.com" target="_blank">外链缺 noopener</a>
+<a href="https://example.org" target="_blank" rel="noopener">外链正常</a>
+
+<div class="wide"></div>
+
+<script>
+  // 故意抛一条控制台错误，验证报错采集
+  console.error('deliberate console error for self-test');
+</script>
+</body>
+</html>
